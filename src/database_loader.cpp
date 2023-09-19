@@ -47,7 +47,8 @@ const std::string WAREHOUSE_HOST_DEFAULT = "localhost";
 constexpr auto WAREHOUSE_PORT_DEFAULT = 33829;
 }  // namespace
 
-DatabaseLoader::DatabaseLoader(const rclcpp::Node::SharedPtr& node) : node_(node)
+DatabaseLoader::DatabaseLoader(const rclcpp::node_interfaces::NodeParametersInterface::SharedPtr& node_parameters)
+  : node_parameters_(node_parameters)
 {
   // Create the plugin loader.
   try
@@ -62,6 +63,11 @@ DatabaseLoader::DatabaseLoader(const rclcpp::Node::SharedPtr& node) : node_(node
   }
 }
 
+DatabaseLoader::DatabaseLoader(const rclcpp::Node::SharedPtr& node)
+  : DatabaseLoader(node->get_node_parameters_interface())
+{
+}
+
 typename DatabaseConnection::Ptr DatabaseLoader::loadDatabase()
 {
   if (!db_plugin_loader_)
@@ -71,30 +77,31 @@ typename DatabaseConnection::Ptr DatabaseLoader::loadDatabase()
 
   // Search for the warehouse_plugin parameter in the local namespace of the node, and up the tree of namespaces.
   // If the desired param is not found, make a final attempt to look for the param in the default namespace
-  std::string db_plugin = WAREHOUSE_PLUGIN_DEFAULT;
-  if (!node_->get_parameter_or(WAREHOUSE_PLUGIN, db_plugin, WAREHOUSE_PLUGIN_DEFAULT))
+  rclcpp::Parameter db_plugin(WAREHOUSE_PLUGIN, WAREHOUSE_PLUGIN_DEFAULT);
+  if (!node_parameters_->get_parameter(WAREHOUSE_PLUGIN, db_plugin))
   {
     RCLCPP_ERROR(LOGGER, "Could not find parameter '%s' using default '%s'", WAREHOUSE_PLUGIN.c_str(),
-                 db_plugin.c_str());
+                 db_plugin.as_string().c_str());
   }
   try
   {
-    DatabaseConnection::Ptr db = db_plugin_loader_->createUniqueInstance(db_plugin);
+    DatabaseConnection::Ptr db = db_plugin_loader_->createUniqueInstance(db_plugin.as_string());
 
     // Get and set host name and port
-    std::string host = WAREHOUSE_HOST_DEFAULT;
-    if (!node_->get_parameter_or(WAREHOUSE_HOST, host, WAREHOUSE_HOST_DEFAULT))
+    rclcpp::Parameter host(WAREHOUSE_HOST, WAREHOUSE_HOST_DEFAULT);
+    if (!node_parameters_->get_parameter(WAREHOUSE_HOST, host))
     {
-      RCLCPP_ERROR(LOGGER, "Could not find parameter '%s' using default '%s'", WAREHOUSE_HOST.c_str(), host.c_str());
+      RCLCPP_ERROR(LOGGER, "Could not find parameter '%s' using default '%s'", WAREHOUSE_HOST.c_str(),
+                   host.as_string().c_str());
     }
-    int port = WAREHOUSE_PORT_DEFAULT;
-    if (!node_->get_parameter_or(WAREHOUSE_PORT, port, WAREHOUSE_PORT_DEFAULT))
+    rclcpp::Parameter port(WAREHOUSE_PORT, WAREHOUSE_PORT_DEFAULT);
+    if (!node_parameters_->get_parameter(WAREHOUSE_PORT, port))
     {
-      RCLCPP_ERROR(LOGGER, "Could not find parameter '%s' using default '%i'", WAREHOUSE_PORT.c_str(), port);
+      RCLCPP_ERROR(LOGGER, "Could not find parameter '%s' using default '%li'", WAREHOUSE_PORT.c_str(), port.as_int());
     }
 
     // If successful return database pointer
-    if (db->setParams(host, port))
+    if (db->setParams(host.as_string(), port.as_int()))
     {
       return db;
     }
@@ -102,8 +109,8 @@ typename DatabaseConnection::Ptr DatabaseLoader::loadDatabase()
   }
   catch (pluginlib::PluginlibException& ex)
   {
-    RCLCPP_ERROR_STREAM(LOGGER,
-                        "Exception while loading database plugin '" << db_plugin << "': " << ex.what() << std::endl);
+    RCLCPP_ERROR_STREAM(LOGGER, "Exception while loading database plugin '" << db_plugin.as_string()
+                                                                            << "': " << ex.what() << std::endl);
     return typename DatabaseConnection::Ptr(new DBConnectionStub());
   }
 }

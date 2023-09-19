@@ -75,6 +75,7 @@ class DatabaseLoader
 public:
   /// \brief Takes a warehouse_ros DatabaseConnection.
   /// The DatabaseConnection is expected to have already been initialized.
+  DatabaseLoader(const rclcpp::node_interfaces::NodeParametersInterface::SharedPtr& node_parameters);
   DatabaseLoader(const rclcpp::Node::SharedPtr& node);
   ~DatabaseLoader(){};
 
@@ -84,7 +85,7 @@ public:
   typename DatabaseConnection::Ptr loadDatabase();
 
 private:
-  rclcpp::Node::SharedPtr node_;
+  rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_;
   std::unique_ptr<pluginlib::ClassLoader<warehouse_ros::DatabaseConnection> > db_plugin_loader_;
 };
 }  // namespace warehouse_ros
